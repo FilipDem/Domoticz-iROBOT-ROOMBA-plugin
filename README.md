@@ -38,7 +38,7 @@ Create a service to start up the client automatically on boot of your domoticz s
 ```
 [Unit]
 Description=Roomba mqtt client
-After=network.target
+After=network.target mosquitto.service
 
 [Service]
 Type=simple
