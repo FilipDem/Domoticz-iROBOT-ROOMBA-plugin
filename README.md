@@ -51,6 +51,7 @@ ExecStart=/usr/bin/python3 /home/pi/domoticz/plugins/Roomba/mqtt_Roomba.py
 WantedBy=multi-user.target
 ```
 * Start the service with `sudo service roomba start`
+* You can check if the service is correctly started with  `sudo service roomba status` (should show `active (running)`)
 
 ### Get the ROOMBA information
 * Get the local IP address of your ROOMBA (often starting with 192.168.x.yyy and x=0 or 1). You can retrieve it from your router. Alternatively you can use tools like nmap (eg `nmap -sP 192.168.0.*`). The local IP address if furthere reference to as `ROOMBA_IP`.
