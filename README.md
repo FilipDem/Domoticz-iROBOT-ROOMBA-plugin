@@ -29,6 +29,14 @@ If the domoticz folder is not located in `/home/pi`, adapt also the folder refer
   * log_dest none
 * Start the service with `sudo service mosquitto start`
 
+### Get the ROOMBA information
+* Get the local IP address of your ROOMBA (often starting with 192.168.x.yyy and x=0 or 1). You can retrieve it from your router. Alternatively you can use tools like nmap (eg `nmap -sP 192.168.0.*`). The local IP address if furthere reference to as `ROOMBA_IP`.
+* Get the BLID/Password of the ROOMBA
+  * Install the six python library with `sudo pip3 install six`
+  * Go to the folder /home/pi/domoticz/plugins/Roomba with `cd /home/pi/domoticz/plugins/Roomba/`
+  * run `python3 ./roomba/getpassword.py -R ROOMBA_IP` and follow the instructions. Shortly the vacuum cleaner must be docked and you need to HOLD the HOME button for some seconds until a sound is played (the WIFI indicator on the ROOMBA will flash).
+  * If all went well, there should be a `config.ini` file in the folder `/home/pi/domoticz/plugins/Roomba/`. You can check the content with `cat config.ini` and will find the `ROOMBA_IP`, blid, password and some other data about the ROOMBA vaccum cleaner.
+
 ### Install MQTT ROOMBA Client
 `mqtt_Roomba.py` is a python3 script that acts as MQTT Client. It is based on Nick Waterton's work (https://github.com/NickWaterton/Roomba980-Python).
 It can be started manually by `python3 mqtt_Roomba.py`. Use the optional parameter -D if debug output is required (eg `python3 mqtt_Roomba.py -D 3`).
@@ -52,14 +60,6 @@ WantedBy=multi-user.target
 ```
 * Start the service with `sudo service roomba start`
 * You can check if the service is correctly started with  `sudo service roomba status` (should show `active (running)`)
-
-### Get the ROOMBA information
-* Get the local IP address of your ROOMBA (often starting with 192.168.x.yyy and x=0 or 1). You can retrieve it from your router. Alternatively you can use tools like nmap (eg `nmap -sP 192.168.0.*`). The local IP address if furthere reference to as `ROOMBA_IP`.
-* Get the BLID/Password of the ROOMBA
-  * Install the six python library with `sudo pip3 install six`
-  * Go to the folder /home/pi/domoticz/plugins/Roomba with `cd /home/pi/domoticz/plugins/Roomba/`
-  * run `python3 ./roomba/getpassword.py -R ROOMBA_IP` and follow the instructions. Shortly the vacuum cleaner must be docked and you need to HOLD the HOME button for some seconds until a sound is played (the WIFI indicator on the ROOMBA will flash).
-  * If all went well, there should be a `config.ini` file in the folder `/home/pi/domoticz/plugins/Roomba/`. You can check the content with `cat config.ini` and will find the `ROOMBA_IP`, blid, password and some other data about the ROOMBA vaccum cleaner.
 
 ### Add the device in Domoticz
 Use the `Setup - Hardware` menu to add your ROOMBA to Domoticz. Select the device type `Roomba` and you are done.
