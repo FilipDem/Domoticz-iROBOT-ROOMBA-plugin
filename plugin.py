@@ -38,8 +38,8 @@ _DEBUG_ON = 2
 #ROOMBA SPECIFIC
 _COMMANDS = '/roomba/command'
 _FEEDBACK = '/roomba/feedback'
-_STATE = '/roomba/feedback/state'
-_BATPCT = '/roomba/feedback/batPct'
+_STATE = '/roomba/feedback/Roomba/state'
+_BATPCT = '/roomba/feedback/Roomba/batPct'
 _START = 'start'
 _STOP = 'stop'
 _DOCK = 'dock'
@@ -156,6 +156,7 @@ class BasePlugin:
             self.runAgain = int(Parameters["Mode5"]) * 60
 
     def onMQTTConnected(self):
+        Domoticz.Debug("onMQTTConnected")
         if self.mqttClient is not None:
             self.mqttClient.Subscribe([_STATE, _BATPCT])
 
