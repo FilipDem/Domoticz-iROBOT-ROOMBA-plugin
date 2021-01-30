@@ -325,7 +325,7 @@ class Roomba(object):
             self.client.on_disconnect = self.on_disconnect
 
             # Uncomment to enable debug messages
-            # client.on_log = self.on_log
+            #self.client.on_log = self.on_log
 
             # set TLS, self.cert_name is required by paho-mqtt, even if the
             # certificate is not used...
@@ -362,7 +362,7 @@ class Roomba(object):
         if self.roomba_connected or self.periodic_connection_running: return
 
         if self.continuous:
-            if not self._connect():
+            if not self._connect(new_connection=False):
                 if self.mqttc is not None:
                     self.mqttc.disconnect()
                 sys.exit(1)
@@ -377,11 +377,11 @@ class Roomba(object):
         max_retries = 3
         try:
             if self.client is None or new_connection:
-                self.log.info("Connecting %s" % self.roombaName)
+                self.log.info("Connecting to Roomba %s" % self.roombaName)
                 self.setup_client()
                 self.client.connect(self.address, self.roomba_port, 60)
             else:
-                self.log.info("Attempting to Reconnect %s" % self.roombaName)
+                self.log.info("Attempting to Reconnect to Roomba %s" % self.roombaName)
                 self.client.loop_stop()
                 self.client.reconnect()
             self.client.loop_start()
@@ -395,11 +395,11 @@ class Roomba(object):
             if exc_type == socket.error or exc_type == ConnectionRefusedError:
                 count += 1
                 if count <= max_retries:
-                    self.log.error("Attempting new Connection# %d" % count)
+                    self.log.error("Attempting new Connection to Roomba (#%d)" % count)
                     time.sleep(1)
                     self._connect(count, True)
         if count == max_retries:
-            self.log.error("Unable to connect %s" % self.roombaName)
+            self.log.error("Unable to connect to Roomba %s" % self.roombaName)
         return False
 
     def disconnect(self):
@@ -426,6 +426,7 @@ class Roomba(object):
         if rc == 0:
             self.roomba_connected = True
             self.client.subscribe(self.topic)
+            self.log.info("Connected to Roomba %s!" % self.roombaName)
         else:
             self.log.error("Roomba Connected with result code " + str(rc))
             self.log.error("Please make sure your blid and password are "
@@ -435,7 +436,7 @@ class Roomba(object):
             sys.exit(1)
 
     def on_message(self, mosq, obj, msg):
-        # print(msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
+        #print(msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
         if self.exclude != "":
             if self.exclude in msg.topic:
                 return
