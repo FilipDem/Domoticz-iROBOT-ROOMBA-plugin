@@ -37,12 +37,18 @@ If the domoticz folder is not located in `/home/pi`, adapt also the folder refer
   * run `python3 ./roomba/getpassword.py -R ROOMBA_IP` and follow the instructions. Shortly the vacuum cleaner must be docked and you need to HOLD the HOME button for some seconds until a sound is played (the WIFI indicator on the ROOMBA will flash).
   * If all went well, there should be a `config.ini` file in the folder `/home/pi/domoticz/plugins/Roomba/`. You can check the content with `cat config.ini` and will find the `ROOMBA_IP`, blid, password and some other data about the ROOMBA vaccum cleaner.
 
-### Install MQTT ROOMBA Client
-`mqtt_Roomba.py` is a python3 script that acts as MQTT Client. It is based on Nick Waterton's work (https://github.com/NickWaterton/Roomba980-Python).
-It can be started manually by `python3 mqtt_Roomba.py`. Use the optional parameter -D if debug output is required (eg `python3 mqtt_Roomba.py -D 3`).
+### Create ROOMBA Client to get information and forward to MQTT Broker
+`roomba` is a python3 module that acts as MQTT Client and forward the informaton to a MQTT Broker. It is based on Nick Waterton's work (https://github.com/NickWaterton/Roomba980-Python).
+It can be started manually by `python3 roomba --topic /roomba/feedback/# --broker localhost --brokerFeedback /roomba/feedback --mapPath '' --mapSize '' --log ''` from the folder `/home/pi/domoticz/plugin/Roomba`. The arguments have the following meaning:
+  * --topic: information/topics subscribed from the ROOMBA
+  * --broker: (IP)Address of the MQTT Broker/Server
+  * --brokerFeedback: information/topics from the ROOMBA sent to the MQTT Broker
+  * --mapPath: set to '' to avoid creating html files and disable map creation
+  * --mapsSize: set to '' to avoid creating html files and disable map creation
+  * --log: set to '' to avoid creating log file on disk
 
 Create a service to start up the client automatically on boot of your domoticz server (stop the python script manually if it would have been started manually before):
-* Create a file `/etc/systemd/system/roomba.service` with the following content (be sure that the file `/home/pi/domoticz/plugins/Roomba/mqtt_Roomba.py` is already copied)
+* Create a file `/etc/systemd/system/roomba.service` with the following content (be sure that the folder `/home/pi/domoticz/plugins/Roomba/roomba` is already copied).
 ```
 [Unit]
 Description=Roomba mqtt client
@@ -53,7 +59,7 @@ Type=simple
 Restart=always
 RestartSec=10
 User=pi
-ExecStart=/usr/bin/python3 /home/pi/domoticz/plugins/Roomba/mqtt_Roomba.py
+ExecStart=/usr/bin/python3 /home/pi/domoticz/plugins/Roomba/roomba --configfile /home/pi/domoticz/plugins/Roomba/config.ini --topic /roomba/feedback/# --broker localhost --brokerFeedback /roomba/feedback --mapPath '' --mapSize '' --log ''
 
 [Install]
 WantedBy=multi-user.target
