@@ -46,6 +46,7 @@ It can be started manually by `python3 roomba --topic /roomba/feedback/# --broke
   * --mapPath: set to '' to avoid creating html files and disable map creation
   * --mapsSize: set to '' to avoid creating html files and disable map creation
   * --log: set to '' to avoid creating log file on disk
+It is possible to add more debug information by adding the argument `--debug` to the 
 
 Create a service to start up the client automatically on boot of your domoticz server (stop the python script manually if it would have been started manually before):
 * Create a file `/etc/systemd/system/roomba.service` with the following content (be sure that the folder `/home/pi/domoticz/plugins/Roomba/roomba` is already copied).
@@ -65,12 +66,21 @@ ExecStart=/usr/bin/python3 /home/pi/domoticz/plugins/Roomba/roomba --configfile 
 WantedBy=multi-user.target
 ```
 * Start the service with `sudo service roomba start`
-* You can check if the service is correctly started with  `sudo service roomba status` (should show `active (running)`)
+* You can check if the service is correctly started with `sudo service roomba status` (should show `active (running)`)
 
 ### Add the device in Domoticz
 Use the `Setup - Hardware` menu to add your ROOMBA to Domoticz. Select the device type `Roomba` and you are done.
 If all goes well two devices are created, one in the `Switches` (to start/stop) and one in the `Utilities` (status of the ROOMBA).
 Remark: there is no ROOMBA icon on the device showing the status. This is a restriction of Domoticz that does not allow to change the icon for a text device.
+
+## Updating from mqtt_Roomba.py to roomba module (linux)
+When having installed the previous version of the plugin (service based on mqtt_Roomba.py), please follow the instuctions here:
+ * Download the new files
+ * Stop the service with `sudo service roomba stop`
+ * Change the file `/etc/systemd/system/roomba.service` with the content specified in the chapter Create ROOMBA Client to get information and forward to MQTT Broker (only the Execstart changed)
+ * Update the changes with the instruction `sudo systemctl daemon-reload`
+ * Start the service with `sudo service roomba start`
+ * Check the service is correcly running with `sudo service roomba status`
 
 Success!
 
