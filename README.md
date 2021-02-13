@@ -65,6 +65,7 @@ ExecStart=/usr/bin/python3 /home/pi/domoticz/plugins/Roomba/roomba --configfile 
 [Install]
 WantedBy=multi-user.target
 ```
+* To start up the service at boot, execute `sudo systemctl enable roomba`
 * Start the service with `sudo service roomba start`
 * You can check if the service is correctly started with `sudo service roomba status` (should show `active (running)`)
 
