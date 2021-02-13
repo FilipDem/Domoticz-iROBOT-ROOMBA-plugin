@@ -5,7 +5,7 @@
       <br/>
     </description>
     <params>
-        <param field="Mode5" label="Minutes between update" width="120px" required="true" default="2"/>
+        <param field="Mode5" label="Timeout (minutes)" width="120px" required="true" default="10"/>
         <param field="Mode6" label="Debug" width="120px">
             <options>
                 <option label="True" value="Debug"/>
@@ -54,7 +54,6 @@ class BasePlugin:
         self.state = None
         self.batpct = None
         self.execute = None
-        self.runAgain = 0
         self.lastMqttUpdate = datetime.now()
         return
 
@@ -115,7 +114,6 @@ class BasePlugin:
 
     def onHeartbeat(self):
         Domoticz.Debug("Heartbeating...")
-        self.runAgain -= self.HEARTBEAT_SEC
 
         if self.mqttClient is not None:
             try:
@@ -146,14 +144,9 @@ class BasePlugin:
         if self.batpct:
             UpdateDeviceBatSig(_UNIT_RUNNING, self.batpct)
             
-        if self.runAgain <= 0:
-
-            # Check if getting information from MQTT Broker
-            if (datetime.now()-self.lastMqttUpdate).total_seconds() > 600:
-                TimeoutDevice(All=True)
-            
-            # Run again following the period in the settings
-            self.runAgain = int(Parameters["Mode5"]) * 60
+        # Check if getting information from MQTT Broker
+        if (datetime.now()-self.lastMqttUpdate).total_seconds() > int(Parameters["Mode5"]) * 60:
+            TimeoutDevice(All=True)
 
     def onMQTTConnected(self):
         Domoticz.Debug("onMQTTConnected")
@@ -169,11 +162,12 @@ class BasePlugin:
     def onMQTTPublish(self, topic, message): # process incoming MQTT statuses
         message = message.decode('utf-8')
         Domoticz.Debug("MQTT message: " + topic + " " + message)
-        self.lastMqttUpdate = datetime.now()
         if topic == _STATE:
             self.state = message
+            self.lastMqttUpdate = datetime.now()
         if topic == _BATPCT:
             self.batpct = int(message)
+            self.lastMqttUpdate = datetime.now()
 
 global _plugin
 _plugin = BasePlugin()
