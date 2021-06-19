@@ -1,11 +1,20 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# ROOMBA Python Plugin
+#
+# Author: Filip Demaertelaere
+#
+# Plugin to manage from Roomba vaccum cleaner from iRobot.
+#
 """
-<plugin key="Roomba" name="Roomba" version="1.0.0">
+<plugin key="Roomba" name="Roomba" author="Filip Demaertelaere" version="1.1.0">
     <description>
       Simple plugin to manage the Roomba from iRobot.
       <br/>
     </description>
     <params>
-        <param field="Mode5" label="Timeout (minutes)" width="120px" required="true" default="10"/>
+        <param field="Mode5" label="Timeout (minutes)" width="120px" required="true" default="15"/>
         <param field="Mode6" label="Debug" width="120px">
             <options>
                 <option label="True" value="Debug"/>
@@ -27,6 +36,7 @@ _IMAGE_ROOMBA = "Roomba"
 #DEVICES TO CREATE
 _UNIT_STATE = 1
 _UNIT_RUNNING = 2
+_UNIT_BAT = 3
 
 #VALUE TO INDICATE THAT THE DEVICE TIMED-OUT
 _TIMEDOUT = 1
@@ -54,6 +64,7 @@ class BasePlugin:
         self.state = None
         self.batpct = None
         self.execute = None
+        self.MqttUpdatereceived = False
         self.lastMqttUpdate = datetime.now()
         return
 
@@ -135,14 +146,17 @@ class BasePlugin:
                 Domoticz.Error("onHeartbeat: " + str(e))
                 
          # Update devices
-        if self.state:
-            UpdateDevice(_UNIT_STATE, 0, self.state, Images[_IMAGE_ROOMBA].ID)
-            if self.state == 'Running':
-                UpdateDevice(_UNIT_RUNNING, 1, 1, Images[_IMAGE_ROOMBA].ID)
-            else:
-                UpdateDevice(_UNIT_RUNNING, 0, 0, Images[_IMAGE_ROOMBA].ID)
-        if self.batpct:
-            UpdateDeviceBatSig(_UNIT_RUNNING, self.batpct)
+        if self.MqttUpdatereceived:
+            if self.state:
+                UpdateDevice(_UNIT_STATE, 0, self.state, Images[_IMAGE_ROOMBA].ID)
+                if self.state == 'Running':
+                    UpdateDevice(_UNIT_RUNNING, 1, 1, Images[_IMAGE_ROOMBA].ID)
+                else:
+                    UpdateDevice(_UNIT_RUNNING, 0, 0, Images[_IMAGE_ROOMBA].ID)
+            if self.batpct:
+                UpdateDeviceBatSig(_UNIT_RUNNING, self.batpct)
+                UpdateDevice(_UNIT_BAT, self.batpct, self.batpct, Images[_IMAGE_ROOMBA].ID)
+            self.MqttUpdatereceived = False
             
         # Check if getting information from MQTT Broker
         if (datetime.now()-self.lastMqttUpdate).total_seconds() > int(Parameters["Mode5"]) * 60:
@@ -165,9 +179,11 @@ class BasePlugin:
         if topic == _STATE:
             self.state = message
             self.lastMqttUpdate = datetime.now()
+            self.MqttUpdatereceived = True
         if topic == _BATPCT:
             self.batpct = int(message)
             self.lastMqttUpdate = datetime.now()
+            self.MqttUpdatereceived = True
 
 global _plugin
 _plugin = BasePlugin()
@@ -227,7 +243,8 @@ def UpdateDevice(Unit, nValue, sValue, Image, TimedOut=0, AlwaysUpdate=False):
             Devices[Unit].Update(nValue=int(nValue), sValue=str(sValue), Image=Image, TimedOut=TimedOut)
             Domoticz.Debug("Update " + Devices[Unit].Name + ": " + str(nValue) + " - '" + str(sValue) + "'")
         else:
-            Devices[Unit].Touch()
+            if not TimedOut:
+                Devices[Unit].Touch()
 
 #UPDATE THE BATTERY LEVEL AND SIGNAL STRENGTH OF A DEVICE
 def UpdateDeviceBatSig(Unit, BatteryLevel=255, SignalLevel=12):
@@ -254,4 +271,5 @@ def CreateDevicesUsed():
 
 #CREATE ALL THE DEVICES (NOT USED)
 def CreateDevicesNotUsed():
-    pass
+    if (_UNIT_BAT not in Devices):
+        Domoticz.Device(Unit=_UNIT_BAT, Name="Battery Level", TypeName="Custom", Options={"Custom": "0;%"}, Image=Images[_IMAGE_ROOMBA].ID, Used=0).Create()
