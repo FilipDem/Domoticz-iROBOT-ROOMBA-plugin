@@ -363,6 +363,7 @@ class Roomba(object):
 
         if self.continuous:
             if not self._connect(new_connection=False):
+                self.log.error("Not able to connect to %s: exiting service!!" % self.roombaName)
                 if self.mqttc is not None:
                     self.mqttc.disconnect()
                 sys.exit(1)
@@ -381,7 +382,7 @@ class Roomba(object):
                 self.setup_client()
                 self.client.connect(self.address, self.roomba_port, 60)
             else:
-                self.log.info("Attempting to Reconnect to Roomba %s" % self.roombaName)
+                self.log.warn("Attempting to Reconnect to Roomba %s" % self.roombaName)
                 self.client.loop_stop()
                 self.client.reconnect()
             self.client.loop_start()
@@ -519,6 +520,8 @@ class Roomba(object):
             self.log.debug("Publishing item: %s: %s"
                            % (self.brokerFeedback + "/" + topic, message))
             self.mqttc.publish(self.brokerFeedback + "/" + topic, message)
+        else:
+            self.log.warn("Publish request, but no mqtt client or message.")
 
     def set_options(self, raw=False, indent=0, pretty_print=False):
         self.raw = raw
