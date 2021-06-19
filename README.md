@@ -16,6 +16,7 @@ Domoticz plugin for the support of the iRobot ROOMBA vacuum robot cleaner. It is
 It enables you to manage the following functions:
 * Start/stop cleaning (when stopping, the vacuum cleaner returns automatically to its docking station)
 * Status of the vacuum cleaner (charging, running, docking, ...)
+* Dedicated device for the battery status (Note: the battery status is systematically updated in the "Run" device. However on request an additional device is created from version 1.1.0 to give the battery status. This additional device is not made visible by default. It is required to use "Add device" in the Setup - Devices menu).
 
 It could easily extended with other functions, however so far it gives me all I need for my home automation (eg ROOMBA is running while I am not at home).
 
