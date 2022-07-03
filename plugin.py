@@ -14,6 +14,10 @@
       <br/>
     </description>
     <params>
+        <param field="Address" label="MQTT Server address" width="300px" required="true" default="127.0.0.1"/>
+        <param field="Port" label="Port" width="300px" required="true" default="1883"/>
+        <param field="Username" label="MQTT Username (optional)" width="300px" required="false" default=""/>
+        <param field="Password" label="MQTT Password (optional)" width="300px" required="false" default="" password="true"/>
         <param field="Mode5" label="Timeout (minutes)" width="120px" required="true" default="15"/>
         <param field="Mode6" label="Debug" width="120px">
             <options>
@@ -90,7 +94,9 @@ class BasePlugin:
 
         # Start MQTT
         try:
-            self.mqttClient = MqttClient('localhost', '1883', self.onMQTTConnected, self.onMQTTDisconnected, self.onMQTTPublish, self.onMQTTSubscribed)
+            mqtt_server_address = Parameters["Address"].strip()
+            mqtt_server_port = Parameters["Port"].strip()
+            self.mqttClient = MqttClient(mqtt_server_address, mqtt_server_port, self.onMQTTConnected, self.onMQTTDisconnected, self.onMQTTPublish, self.onMQTTSubscribed)
         except Exception as e:
             Domoticz.Error("MQTT client start error: "+str(e))
             self.mqttClient = None
