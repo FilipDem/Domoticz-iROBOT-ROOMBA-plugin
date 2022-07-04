@@ -41,7 +41,7 @@ class MqttClient:
         Domoticz.Debug("MqttClient::Connect")
         if (self.mqttConn == None):
             self.Open()
-        else:
+        elif self.mqttConn.Connected():
             ID = 'Domoticz_'+str(int(time.time()))
             Domoticz.Log("MQTT CONNECT ID: '" + ID + "'")
             self.mqttConn.Send({'Verb': 'CONNECT', 'ID': ID})
@@ -50,14 +50,14 @@ class MqttClient:
         Domoticz.Debug("MqttClient::Ping")
         if (self.mqttConn == None or not self.isConnected):
             self.Open()
-        else:
+        elif self.isConnected:
             self.mqttConn.Send({'Verb': 'PING'})
 
     def Publish(self, topic, payload, retain = 0):
         Domoticz.Log("MqttClient::Publish " + topic + " (" + payload + ")")
         if (self.mqttConn == None or not self.isConnected):
             self.Open()
-        else:
+        elif self.isConnected:
             self.mqttConn.Send({'Verb': 'PUBLISH', 'Topic': topic, 'Payload': bytearray(payload, 'utf-8'), 'Retain': retain})
 
     def Subscribe(self, topics):
@@ -67,7 +67,7 @@ class MqttClient:
             subscriptionlist.append({'Topic':topic, 'QoS':0})
         if (self.mqttConn == None or not self.isConnected):
             self.Open()
-        else:
+        elif self.isConnected:
             self.mqttConn.Send({'Verb': 'SUBSCRIBE', 'Topics': subscriptionlist})
 
     def Close(self):
