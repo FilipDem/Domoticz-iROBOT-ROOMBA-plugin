@@ -8,14 +8,13 @@
 # Plugin to manage from Roomba vaccum cleaner from iRobot.
 #
 """
-<plugin key="Roomba" name="Roomba" author="Filip Demaertelaere" version="1.1.0">
+<plugin key="Roomba" name="Roomba" author="Filip Demaertelaere" version="1.2.0">
     <description>
-      Simple plugin to manage the Roomba from iRobot.
-      <br/>
+        Plugin to manage the Roomba from iRobot.<br/><br/>
     </description>
     <params>
-        <param field="Address" label="MQTT Server address" width="300px" required="true" default="127.0.0.1"/>
-        <param field="Port" label="Port" width="300px" required="true" default="1883"/>
+        <param field="Address" label="MQTT Server Address" width="300px" required="true" default="127.0.0.1"/>
+        <param field="Port" label="MQTT Server Port" width="300px" required="true" default="1883"/>
         <param field="Username" label="MQTT Username (optional)" width="300px" required="false" default=""/>
         <param field="Password" label="MQTT Password (optional)" width="300px" required="false" default="" password="true"/>
         <param field="Mode5" label="Timeout (minutes)" width="120px" required="true" default="15"/>
@@ -28,96 +27,129 @@
      </params>
 </plugin>
 """
+
+import sys, os
+major,minor,x,y,z = sys.version_info
+sys.path.append('/usr/lib/python3/dist-packages')
+sys.path.append('/usr/local/lib/python{}.{}/dist-packages'.format(major, minor))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+from domoticz_tools import *
 import Domoticz
+import configparser
+import re
 from mqtt import MqttClient
-from roomba import Roomba
 from datetime import datetime
-import json
+from ast import literal_eval
 
 #DEFAULT IMAGE
-_IMAGE_ROOMBA = "Roomba"
+_IMAGE_ROOMBA = 'Roomba'
 
-#DEVICES TO CREATE
-_UNIT_STATE = 1
-_UNIT_RUNNING = 2
-_UNIT_BAT = 3
+#CONfig FILENAME
+CONFIG = 'config.ini'
 
-#VALUE TO INDICATE THAT THE DEVICE TIMED-OUT
-_TIMEDOUT = 1
-
-#DEBUG
-_DEBUG_OFF = 0
-_DEBUG_ON = 2
+#DEVICES
+STATE = 'State'
+RUN = 'Run'
+BATTERY = 'Battery Level'
 
 #ROOMBA SPECIFIC
-_COMMANDS = '/roomba/command'
-_FEEDBACK = '/roomba/feedback'
-_STATE = '/roomba/feedback/Roomba/state'
-_BATPCT = '/roomba/feedback/Roomba/batPct'
+_COMMANDS = '/roomba/command/'
+_FEEDBACK = '/roomba/feedback/'
+_STATE = '/state'
+_BATPCT = '/batPct'
 _START = 'start'
 _STOP = 'stop'
 _DOCK = 'dock'
+_CHARGING = 'Charging'
+_STOPPED = 'Stopped'
+
+################################################################################
+# Start Plugin
+################################################################################
 
 class BasePlugin:
 
     HEARTBEAT_SEC = 10
 
     def __init__(self):
+        self.debug = DEBUG_OFF
+        self.runAgain = MINUTE
         self.mqttClient = None
-        self.myroomba = None
-        self.state = None
-        self.batpct = None
-        self.execute = None
-        self.MqttUpdatereceived = False
-        self.lastMqttUpdate = datetime.now()
-        return
+        self.myroombas = {}
 
     def onStart(self):
 
         # Debugging On/Off
-        self.debug = _DEBUG_ON if Parameters["Mode6"] == "Debug" else _DEBUG_OFF
+        self.debug = DEBUG_ON if Parameters['Mode6'] == 'Debug' else DEBUG_OFF
         Domoticz.Debugging(self.debug)
+        if self.debug == DEBUG_ON:
+            DumpConfigToLog(Parameters, Devices)
 
         # Create images if necessary
         if _IMAGE_ROOMBA not in Images:
-            Domoticz.Image("Roomba.zip").Create()
+            Domoticz.Image('Roomba.zip').Create()
 
-        # Create devices (USED BY DEFAULT)
-        CreateDevicesUsed()
-        TimeoutDevice(All=True)
+        # Read config file
+        Config = configparser.ConfigParser()
+        try:
+            Config.read('{}{}'.format(Parameters['HomeFolder'], CONFIG))
+            Domoticz.Debug('Reading info from configuration file "{}"'.format(CONFIG))
+            self.myroombas = { literal_eval(v).get('robotname'): {} for s in Config.sections() for k, v in Config.items(s) if k == 'data' }
+            Domoticz.Debug('Roombas found in configuration file: {}'.format(self.myroombas))
+        except:
+            Domoticz.Error('Error reading the configuration file {}{}'.format(Parameters['HomeFolder'], CONFIG))
+            self.myroombas.clear()
 
-        # Create devices (NOT USED BY DEFAULT)
-        CreateDevicesNotUsed()
-
-        # Global settings
-        DumpConfigToLog()
-
+        # Create devices
+        for roomba in self.myroombas:
+            Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, STATE))
+            if not Unit:
+                Unit = GetNextFreeUnit(Devices)
+                Domoticz.Device(Unit=Unit, Name='{} - {}'.format(roomba, STATE), TypeName='Text', Image=Images[_IMAGE_ROOMBA].ID, Used=1).Create()
+            Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, RUN))
+            if not Unit:
+                Unit = GetNextFreeUnit(Devices)
+                Domoticz.Device(Unit=Unit, Name='{} - {}'.format(roomba, RUN), Type=244, Subtype=73, Switchtype=0, Image=Images[_IMAGE_ROOMBA].ID, Used=1).Create()
+            Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, BATTERY))
+            if not Unit:
+                Unit = GetNextFreeUnit(Devices)
+                Domoticz.Device(Unit=Unit, Name='{} - {}'.format(roomba, BATTERY), TypeName='Custom', Options={'Custom': '0;%'}, Image=Images[_IMAGE_ROOMBA].ID, Used=0).Create()
+        TimeoutDevice(Devices, All=True)
+        
         # Start MQTT
         try:
             mqtt_server_address = Parameters["Address"].strip()
             mqtt_server_port = Parameters["Port"].strip()
             self.mqttClient = MqttClient(mqtt_server_address, mqtt_server_port, self.onMQTTConnected, self.onMQTTDisconnected, self.onMQTTPublish, self.onMQTTSubscribed)
         except Exception as e:
-            Domoticz.Error("MQTT client start error: "+str(e))
+            Domoticz.Error('MQTT client start error: {}'.format(e))
             self.mqttClient = None
 
     def onStop(self):
-        Domoticz.Debug("onStop called")
+        Domoticz.Debug('onStop called')
 
     def onCommand(self, Unit, Command, Level, Color):  # react to commands arrived from Domoticz
-        Domoticz.Debug("Command: " + Command + " (" + str(Level) + ") Color:" + Color)
-        if Unit == _UNIT_RUNNING:
-            if Command == 'On':
-                if self.state == 'Charging':
-                    self.mqttClient.Publish(_COMMANDS, 'start')
+        Domoticz.Debug('onCommand called for "{}" Unit: {} - Parameter: {} - Level: {}'.format(Devices[Unit].Name, Unit, Command, Level))
+        if Devices[Unit].Name.endswith(RUN):
+            try:
+                roomba = re.search('{} - (.*?) - {}'.format(Parameters['Name'], RUN), Devices[Unit].Name)[1]
+                Domoticz.Debug('iRobot found to send command to ({}).'.format(roomba))
+                if roomba in self.myroombas:
+                    if Command == 'On':
+                        if self.myroombas[roomba]['state'] == _CHARGING:
+                            self.mqttClient.Publish('{}{}'.format(_COMMANDS, roomba), _START)
+                        else:
+                            self.mqttClient.Publish('{}{}'.format(_COMMANDS, roomba), _DOCK)
+                    else:
+                        self.mqttClient.Publish('{}{}'.format(_COMMANDS, roomba), _STOP)
+                        self.myroombas[roomba]['execute'] = _DOCK
                 else:
-                    self.mqttClient.Publish(_COMMANDS, 'dock')
-            else:
-                self.mqttClient.Publish(_COMMANDS, 'stop')
-                self.execute = _DOCK
+                    Domoticz.Status('"{}" is not a valid iRobot (not found in the file "{}").'.format(roomba, CONFIG))                
+            except:
+                pass
 
     def onConnect(self, Connection, Status, Description):
-        Domoticz.Debug("Connection: " + str(Status))
+        Domoticz.Debug('Connection: {}'.format(Status))
         if self.mqttClient is not None:
             self.mqttClient.onConnect(Connection, Status, Description)
 
@@ -130,66 +162,94 @@ class BasePlugin:
             self.mqttClient.onMessage(Connection, Data)
 
     def onHeartbeat(self):
-        Domoticz.Debug("Heartbeating...")
 
         if self.mqttClient is not None:
             try:
                 # Reconnect if connection has dropped
-                if self.mqttClient.mqttConn is None or (not self.mqttClient.mqttConn.Connecting() and not self.mqttClient.mqttConn.Connected() or not self.mqttClient.isConnected):
-                    Domoticz.Debug("Reconnecting")
+                if self.mqttClient.mqttConn is None or not (self.mqttClient.mqttConn.Connecting() or (self.mqttClient.mqttConn.Connected() and self.mqttClient.isConnected)):
+                    Domoticz.Debug('Reconnecting')
                     self.mqttClient.Open()
-                else:
+                elif self.mqttClient.isConnected:
                     self.mqttClient.Ping()
 
                     # Commands to Roomba
-                    if self.execute == _DOCK:
-                        if self.state == 'Stopped':
-                            self.mqttClient.Publish(_COMMANDS, 'dock')
-                        if self.state == 'Charging':
-                            self.execute = None
+                    for roomba in self.myroombas:
+                        if 'state' in roomba and 'execute' in roomba and roomba['execute'] == _DOCK:
+                            if roomba['state'] == _STOPPED:
+                                self.mqttClient.Publish('{}{}'.format(_COMMANDS, roomba), _DOCK)
+                            elif roomba['state'] == _CHARGING:
+                                roomba['execute'] = ''
                 
             except Exception as e:
-                Domoticz.Error("onHeartbeat: " + str(e))
+                Domoticz.Error('General error with Roomba: {}'.format(e))
                 
-         # Update devices
-        if self.MqttUpdatereceived:
-            if self.state:
-                UpdateDevice(_UNIT_STATE, 0, self.state, Images[_IMAGE_ROOMBA].ID)
-                if self.state == 'Running':
-                    UpdateDevice(_UNIT_RUNNING, 1, 1, Images[_IMAGE_ROOMBA].ID)
-                else:
-                    UpdateDevice(_UNIT_RUNNING, 0, 0, Images[_IMAGE_ROOMBA].ID)
-            if self.batpct:
-                UpdateDeviceBatSig(_UNIT_RUNNING, self.batpct)
-                UpdateDevice(_UNIT_BAT, self.batpct, self.batpct, Images[_IMAGE_ROOMBA].ID)
-            self.MqttUpdatereceived = False
-            
-        # Check if getting information from MQTT Broker
-        if (datetime.now()-self.lastMqttUpdate).total_seconds() > int(Parameters["Mode5"]) * 60:
-            TimeoutDevice(All=True)
+        self.runAgain -= 1
+        if self.runAgain <= 0:
 
+            Domoticz.Debug('Heartbeat - Status of all iRobots: {}.'.format(self.myroombas))
+            
+            # Update devices
+            for roomba in self.myroombas:
+                if 'MqttUpdatereceived' in self.myroombas[roomba] and self.myroombas[roomba]['MqttUpdatereceived']:
+                    if 'state' in self.myroombas[roomba] and self.myroombas[roomba]['state']:
+                        Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, STATE))
+                        UpdateDevice(False, Devices, Unit, 0, self.myroombas[roomba]['state'])
+                        Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, RUN))
+                        if self.myroombas[roomba]['state'] == 'Running':
+                            UpdateDevice(False, Devices, Unit, 1, 1)
+                        else:
+                            UpdateDevice(False, Devices, Unit, 0, 0)
+                    if 'batpct' in self.myroombas[roomba] and self.myroombas[roomba]['batpct']:
+                        Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, RUN))
+                        UpdateDeviceBatSig(False, Devices, Unit, BatteryLevel=self.myroombas[roomba]['batpct'])
+                        Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, BATTERY))
+                        UpdateDevice(False, Devices, Unit, self.myroombas[roomba]['batpct'], self.myroombas[roomba]['batpct'])
+                    self.myroombas[roomba]['MqttUpdatereceived'] = False
+        
+            # Check if getting information from MQTT Broker
+            for roomba in self.myroombas:
+                if 'lastMqttUpdate' in self.myroombas[roomba] and (datetime.now()-self.myroombas[roomba]['lastMqttUpdate']).total_seconds() > int(Parameters['Mode5']) * 60:
+                    Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, STATE))
+                    TimeoutDevice(Devices, All=False, Unit=Unit)
+                    Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, RUN))
+                    TimeoutDevice(Devices, All=False, Unit=Unit)
+                    Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, BATTERY))
+                    TimeoutDevice(Devices, All=False, Unit=Unit)
+
+            self.runAgain = MINUTE
+             
     def onMQTTConnected(self):
-        Domoticz.Debug("onMQTTConnected")
+        Domoticz.Debug('onMQTTConnected')
         if self.mqttClient is not None:
-            self.mqttClient.Subscribe([_STATE, _BATPCT])
+            self.mqttClient.Subscribe([ item for roomba in self.myroombas for item in ['{}{}{}'.format(_FEEDBACK, roomba, _STATE), '{}{}{}'.format(_FEEDBACK, roomba, _BATPCT)] ])
 
     def onMQTTDisconnected(self):
-        Domoticz.Debug("onMQTTDisconnected")
+        Domoticz.Debug('onMQTTDisconnected')
 
     def onMQTTSubscribed(self):
-        Domoticz.Debug("onMQTTSubscribed")
+        Domoticz.Debug('onMQTTSubscribed')
 
     def onMQTTPublish(self, topic, message): # process incoming MQTT statuses
         message = message.decode('utf-8')
-        Domoticz.Debug("MQTT message: " + topic + " " + message)
-        if topic == _STATE:
-            self.state = message
-            self.lastMqttUpdate = datetime.now()
-            self.MqttUpdatereceived = True
-        if topic == _BATPCT:
-            self.batpct = int(message)
-            self.lastMqttUpdate = datetime.now()
-            self.MqttUpdatereceived = True
+        Domoticz.Debug('MQTT message: {} - {}'.format(topic, message))
+        if topic.startswith(_FEEDBACK):
+            if topic.endswith(_STATE):
+                try:
+                    roomba = re.search('{}(.*?){}'.format(_FEEDBACK, _STATE), topic)[1]
+                    self.myroombas[roomba]['state'] = message
+                    self.myroombas[roomba]['lastMqttUpdate'] = datetime.now()
+                    self.myroombas[roomba]['MqttUpdatereceived'] = True
+                except:
+                    pass
+            elif topic.endswith(_BATPCT):
+                try:
+                    roomba = re.search('{}(.*?){}'.format(_FEEDBACK, _STATE), topic)[1]
+                    self.myroombas[roomba]['batpct'] = int(message)
+                    self.myroombas[roomba]['lastMqttUpdate'] = datetime.now()
+                    self.myroombas[roomba]['MqttUpdatereceived'] = True
+                except:
+                    pass
+        Domoticz.Debug('MQTT Published - Status of all iRobots: {}.'.format(self.myroombas))
 
 global _plugin
 _plugin = BasePlugin()
@@ -227,55 +287,5 @@ def onHeartbeat():
     _plugin.onHeartbeat()
     
 ################################################################################
-# Generic helper functions
+# Specific helper functions
 ################################################################################
-
-#DUMP THE PARAMETER
-def DumpConfigToLog():
-    for parameter in Parameters:
-        if Parameters[parameter] != "":
-            Domoticz.Debug("> Parameter {}: {}".format(parameter, Parameters[parameter]))
-    Domoticz.Debug("> Got {} devices:".format(len(Devices)))
-    for device in Devices:
-        Domoticz.Debug("> Device {} {}".format(device, Devices[device]))
-        Domoticz.Debug("> Device {} DeviceID:    {}".format(device, Devices[device].DeviceID))
-        Domoticz.Debug("> Device {} Description: {}".format(device, Devices[device].Description))
-        Domoticz.Debug("> Device {} LastLevel:   {}".format(device, Devices[device].LastLevel))
-
-#UPDATE THE DEVICE
-def UpdateDevice(Unit, nValue, sValue, Image, TimedOut=0, AlwaysUpdate=False):
-    if Unit in Devices:
-        if Devices[Unit].nValue != int(nValue) or Devices[Unit].sValue != str(sValue) or Devices[Unit].TimedOut != TimedOut or Devices[Unit].Image != Image or AlwaysUpdate:
-            Devices[Unit].Update(nValue=int(nValue), sValue=str(sValue), Image=Image, TimedOut=TimedOut)
-            Domoticz.Debug("Update " + Devices[Unit].Name + ": " + str(nValue) + " - '" + str(sValue) + "'")
-        else:
-            if not TimedOut:
-                Devices[Unit].Touch()
-
-#UPDATE THE BATTERY LEVEL AND SIGNAL STRENGTH OF A DEVICE
-def UpdateDeviceBatSig(Unit, BatteryLevel=255, SignalLevel=12):
-    if Unit in Devices:
-        if Devices[Unit].BatteryLevel != int(BatteryLevel) or Devices[Unit].SignalLevel != int(SignalLevel):
-            Domoticz.Debug("Going to Update " + Devices[Unit].Name + ": " + str(Devices[Unit].nValue) + " - '" + str(Devices[Unit].sValue) + "' - " + str(BatteryLevel) + " - " + str(SignalLevel))
-            Devices[Unit].Update(nValue=Devices[Unit].nValue, sValue=Devices[Unit].sValue, BatteryLevel=int(BatteryLevel), SignalLevel=int(SignalLevel))
-            Domoticz.Debug("Updated " + Devices[Unit].Name + ": " + str(Devices[Unit].nValue) + " - '" + str(Devices[Unit].sValue) + "' - " + str(BatteryLevel) + " - " + str(SignalLevel))
-
-#SET DEVICE ON TIMED-OUT (OR ALL DEVICES)
-def TimeoutDevice(All, Unit=0):
-    if All:
-        for x in Devices:
-            UpdateDevice(x, Devices[x].nValue, Devices[x].sValue, Devices[x].Image, TimedOut=_TIMEDOUT)
-    else:
-        UpdateDevice(Unit, Devices[Unit].nValue, Devices[Unit].sValue, Devices[Unit].Image, TimedOut=_TIMEDOUT)
-
-#CREATE ALL THE DEVICES (USED)
-def CreateDevicesUsed():
-    if (_UNIT_STATE not in Devices):
-        Domoticz.Device(Name="State", Unit=_UNIT_STATE, TypeName="Text", Image=Images[_IMAGE_ROOMBA].ID, Used=1).Create()
-    if (_UNIT_RUNNING not in Devices):
-        Domoticz.Device(Unit=_UNIT_RUNNING, Name="Run", Type=244, Subtype=73, Switchtype=0, Image=Images[_IMAGE_ROOMBA].ID, Used=1).Create()
-
-#CREATE ALL THE DEVICES (NOT USED)
-def CreateDevicesNotUsed():
-    if (_UNIT_BAT not in Devices):
-        Domoticz.Device(Unit=_UNIT_BAT, Name="Battery Level", TypeName="Custom", Options={"Custom": "0;%"}, Image=Images[_IMAGE_ROOMBA].ID, Used=0).Create()
