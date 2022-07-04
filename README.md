@@ -20,6 +20,8 @@ It enables you to manage the following functions:
 
 It could easily extended with other functions, however so far it gives me all I need for my home automation (eg ROOMBA is running while I am not at home).
 
+The current version of the plugin supports multiple iRobot/Roomba devices (on the same network). The devices are created based on the config.ini file (see hereunder).
+
 The plugin is based on MQTT (https://en.wikipedia.org/wiki/MQTT).
 
 ## Installation (linux)
@@ -35,9 +37,13 @@ If the domoticz folder is not located in `/home/pi`, adapt also the folder refer
 * It is adviced to change the mosquitto configuration file (by default in /etc/mosquitto/mosquitto.conf)
   * persistence false
   * log_dest none
-* Start the service with `sudo service mosquitto start`
+* Start the service with `sudo service mosquitto start
 
 ### Get the ROOMBA information
+This chapter explains how to create the config.ini file that 1) is used to get the device status from the iRobots and 2) to identify the different devices in Domoticz.
+
+!! Please see https://github.com/NickWaterton/Roomba980-Python for the last version of the instructions how to create the config.ini file.
+
 * Get the local IP address of your ROOMBA (often starting with 192.168.x.yyy and x=0 or 1). You can retrieve it from your router. Alternatively you can use tools like nmap (eg `nmap -sP 192.168.0.*`). The local IP address if furthere reference to as `ROOMBA_IP`.
 * Get the BLID/Password of the ROOMBA
   * Install the six python library with `sudo pip3 install six`
@@ -50,10 +56,10 @@ If the domoticz folder is not located in `/home/pi`, adapt also the folder refer
 It can be started manually by `python3 roomba --topic /roomba/feedback/# --broker localhost --brokerFeedback /roomba/feedback --mapPath '' --mapSize '' --log ''` from the folder `/home/pi/domoticz/plugin/Roomba`. The arguments have the following meaning:
   * --topic: information/topics subscribed from the ROOMBA
   * --broker: (IP)Address of the MQTT Broker/Server
-  * --brokerFeedback: information/topics from the ROOMBA sent to the MQTT Broker
-  * --mapPath: set to '' to avoid creating html files and disable map creation
-  * --mapsSize: set to '' to avoid creating html files and disable map creation
-  * --log: set to '' to avoid creating log file on disk
+  * --broker_feedback: information/topics from the ROOMBA sent to the MQTT Broker
+  * --mappath: set to '' to avoid creating html files and disable map creation
+  * --mapsize: set to '' to avoid creating html files and disable map creation
+  * --log: set to '/tmp/roomba.log' to avoid creating log file on disk
 It is possible to add more debug information by adding the argument `--debug` to the 
 
 Create a service to start up the client automatically on boot of your domoticz server (stop the python script manually if it would have been started manually before):
