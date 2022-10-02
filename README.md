@@ -48,7 +48,7 @@ This chapter explains how to create the config.ini file that 1) is used to get t
 * Get the BLID/Password of the ROOMBA
   * Install the six python library with `sudo pip3 install six`
   * Go to the folder /home/pi/domoticz/plugins/Roomba with `cd /home/pi/domoticz/plugins/Roomba/`
-  * run `python3 ./roomba/getpassword.py -R ROOMBA_IP` and follow the instructions. Shortly the vacuum cleaner must be docked and you need to HOLD the HOME button for some seconds until a sound is played (the WIFI indicator on the ROOMBA will flash).
+  * run `python3 ./roomba/getpassword.py -R ROOMBA_IP` and follow the instructions. Shortly the vacuum cleaner must be docked and you need to HOLD the HOME button for some seconds until a sound is played (the WIFI indicator on the ROOMBA will flash). My last expercience generated an SSL error (DH_KEY_TOO_SMALL). Alternatively you can also use the command `python3 ./roomba/password.py <login> <password>` to get the username/blid and password from the iRobot cloud.
   * If all went well, there should be a `config.ini` file in the folder `/home/pi/domoticz/plugins/Roomba/`. You can check the content with `cat config.ini` and will find the `ROOMBA_IP`, blid, password and some other data about the ROOMBA vaccum cleaner.
 
 ### Create ROOMBA Client to get information and forward to MQTT Broker
