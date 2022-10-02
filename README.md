@@ -60,7 +60,8 @@ It can be started manually by `python3 roomba --topic /roomba/feedback/# --broke
   * --mappath: set to '' to avoid creating html files and disable map creation
   * --mapsize: set to '' to avoid creating html files and disable map creation
   * --log: set to '/tmp/roomba.log' to avoid creating log file on disk
-It is possible to add more debug information by adding the argument `--debug` to the 
+  
+It is possible to add more debug information by adding the argument `--debug` to the command line.
 
 Create a service to start up the client automatically on boot of your domoticz server (stop the python script manually if it would have been started manually before):
 * Create a file `/etc/systemd/system/roomba.service` with the following content (be sure that the folder `/home/pi/domoticz/plugins/Roomba/roomba` is already copied).
