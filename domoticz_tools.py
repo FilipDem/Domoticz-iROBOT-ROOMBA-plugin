@@ -6,7 +6,7 @@
 
 __all__ = ['TIMEDOUT', 'MINUTE', 'DEBUG_OFF', 'DEBUG_ON', 'DEBUG_ON_NO_FRAMEWORK',\
            'DumpConfigToLog', \
-           'GetNextFreeUnit', 'FindUnitFromName', 'CreateDescription', 'UpdateDevice', 'UpdateDeviceBatSig', 'TimeoutDevice', 'UpdateDeviceOptions', 'SecondsSinceLastUpdate', \
+           'GetNextFreeUnit', 'FindUnitFromName', 'CreateDescription', 'UpdateDevice', 'UpdateDeviceBatSig', 'TimeoutDevice', 'TimeoutDevicesByName', 'UpdateDeviceOptions', 'SecondsSinceLastUpdate', \
            'getConfigItemDB', 'setConfigItemDB', 'getConfigItemFile', 'setConfigItemFile', \
            'getCPUtemperature', \
            'FormatWebSocketMessage', 'FormatWebSocketPong', 'FormatWebSocketMessageDisconnect', \
@@ -47,9 +47,13 @@ def GetNextFreeUnit(Devices):
     return unit
     
 #GET DEVICE UNIT BY NAME
-def FindUnitFromName(Devices, Parameters, Name):
-    for unit in [Unit for Unit in Devices if Devices[Unit].Name == '{} - {}'.format(Parameters['Name'], Name)]:
-        return unit
+def FindUnitFromName(Devices, Parameters, Name, TruncSubName=False):
+    if TruncSubName:
+        for unit in [Unit for Unit in Devices if Devices[Unit].Name.startswith('{} - {}'.format(Parameters['Name'], Name))]:
+            return unit
+    else:
+        for unit in [Unit for Unit in Devices if Devices[Unit].Name == '{} - {}'.format(Parameters['Name'], Name)]:
+            return unit
     return False
     
 #CREATE DESCRIPTION OF A DEVICE
@@ -83,6 +87,12 @@ def TimeoutDevice(Devices, All=True, Unit=0):
             UpdateDevice(False, Devices, x, Devices[x].nValue, Devices[x].sValue, TimedOut=TIMEDOUT)
     else:
         UpdateDevice(False, Devices, Unit, Devices[Unit].nValue, Devices[Unit].sValue, TimedOut=TIMEDOUT)
+
+#SET DEVICES ON TIMED-OUT BY USING A TEXT IN THE DEVICE NAME
+def TimeoutDevicesByName(Devices, Name):
+    for x in Devices:
+        if Name in x.Name:
+            UpdateDevice(False, Devices, x, Devices[x].nValue, Devices[x].sValue, TimedOut=TIMEDOUT)
 
 #UPDATE THE OPTIONS OF A DEVICE
 def UpdateDeviceOptions(Devices, Unit, Options={}):
@@ -204,5 +214,3 @@ def getDistance(origin, destination):
     d = radius * c
 
     return d
-
-
