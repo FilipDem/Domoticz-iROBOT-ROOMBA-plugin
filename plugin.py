@@ -160,6 +160,12 @@ class BasePlugin:
     def onMessage(self, Connection, Data):
         if self.mqttClient is not None:
             self.mqttClient.onMessage(Connection, Data)
+            
+    def onTimeout(self, Connection):
+        Domoticz.Error("Timeout out on connection received.")
+        if self.mqttClient is not None:
+            self.mqttClient.onTimeout(Connection)
+        self.runAgain = MINUTE
 
     def onHeartbeat(self):
 
@@ -199,11 +205,11 @@ class BasePlugin:
                             UpdateDevice(False, Devices, Unit, 1, 1)
                         else:
                             UpdateDevice(False, Devices, Unit, 0, 0)
-                    if 'batpct' in self.myroombas[roomba] and self.myroombas[roomba]['batpct']:
+                    if 'batPct' in self.myroombas[roomba] and self.myroombas[roomba]['batPct']:
                         Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, RUN))
-                        UpdateDeviceBatSig(False, Devices, Unit, BatteryLevel=self.myroombas[roomba]['batpct'])
+                        UpdateDeviceBatSig(False, Devices, Unit, BatteryLevel=self.myroombas[roomba]['batPct'])
                         Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, BATTERY))
-                        UpdateDevice(False, Devices, Unit, self.myroombas[roomba]['batpct'], self.myroombas[roomba]['batpct'])
+                        UpdateDevice(False, Devices, Unit, self.myroombas[roomba]['batPct'], self.myroombas[roomba]['batPct'])
                     self.myroombas[roomba]['MqttUpdatereceived'] = False
         
             # Check if getting information from MQTT Broker
@@ -243,8 +249,8 @@ class BasePlugin:
                     pass
             elif topic.endswith(_BATPCT):
                 try:
-                    roomba = re.search('{}(.*?){}'.format(_FEEDBACK, _STATE), topic)[1]
-                    self.myroombas[roomba]['batpct'] = int(message)
+                    roomba = re.search('{}(.*?){}'.format(_FEEDBACK, _BATPCT), topic)[1]
+                    self.myroombas[roomba]['batPct'] = int(message)
                     self.myroombas[roomba]['lastMqttUpdate'] = datetime.now()
                     self.myroombas[roomba]['MqttUpdatereceived'] = True
                 except:
