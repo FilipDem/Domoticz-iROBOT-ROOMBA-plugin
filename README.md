@@ -11,16 +11,17 @@ The QR codes comply the EPC069-12 European Standard for SEPA Credit Transfers ([
 [![](https://www.paypalobjects.com/en_US/BE/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=AT4L7ST55JR4A) 
 
 # Domoticz-iROBOT-ROOMBA-plugin
-Domoticz plugin for the support of the iRobot ROOMBA vacuum robot cleaner. It is tested with the ROOMBA i7. 
+Domoticz plugin for the support of the iRobot ROOMBA vacuum robot cleaner. It is tested with the ROOMBA i7.
 
 It enables you to manage the following functions:
 * Start/stop cleaning (when stopping, the vacuum cleaner returns automatically to its docking station)
 * Status of the vacuum cleaner (charging, running, docking, ...)
 * Dedicated device for the battery status (Note: the battery status is systematically updated in the "Run" device. However on request an additional device is created from version 1.1.0 to give the battery status. This additional device is not made visible by default. It is required to use "Add device" in the Setup - Devices menu).
+* Device showing the error text returned by the vaccum cleaner
 
 It could easily extended with other functions, however so far it gives me all I need for my home automation (eg ROOMBA is running while I am not at home).
 
-The current version of the plugin supports multiple iRobot/Roomba devices (on the same network). The devices are created based on the config.ini file (see hereunder).
+The current version of the plugin supports multiple iRobot/Roomba devices (on the same network). The devices are created based on the config.ini file (see hereunder). The devices are created with names including the names of the vaccum cleaners. If you want to change the name of the devices, please see the instructions below.
 
 The plugin is based on MQTT (https://en.wikipedia.org/wiki/MQTT).
 
@@ -86,8 +87,18 @@ WantedBy=multi-user.target
 
 ### Add the device in Domoticz
 Use the `Setup - Hardware` menu to add your ROOMBA to Domoticz. Select the device type `Roomba` and you are done.
-If all goes well two devices are created, one in the `Switches` (to start/stop) and one in the `Utilities` (status of the ROOMBA).
-Remark: there is no ROOMBA icon on the device showing the status. This is a restriction of Domoticz that does not allow to change the icon for a text device.
+If all goes well three devices are created, one in the `Switches` (to start/stop) and two in the `Utilities` (status of the ROOMBA an error text from ROOMBA).
+
+### How to change the device names
+As the plugin supports multiple vaccum cleaners in parallel, the default names of the automatically created devices are fixed. It is recommended not to change them otherwise new devices will automatically be created again with default names.
+However if for any reason you would like to change the names, follow the procedure below.
+* Go to the devices in the Switches and Utilies menu
+* Click on the "Edit" button
+* Copy the current name of the device from the user interface in the field "Name"
+* Add the following text in the Description field of the device: `Do not remove: [{"Name":"xxx"}]`, where xxx should be replaced by the default device name copied in the instruction just above. If you have already text in the Description field, you can add at then end `; Do not remove: [{"Name":"xxx"}]`
+* Click the "Save" button
+
+Now you can change the default device names. The plugin will automatically fall back to the information in the Description of the device.
 
 ## Updating from mqtt_Roomba.py to roomba module (linux)
 When having installed the previous version of the plugin (service based on mqtt_Roomba.py), please follow the instuctions here:
