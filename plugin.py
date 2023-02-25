@@ -8,7 +8,7 @@
 # Plugin to manage from Roomba vaccum cleaner from iRobot.
 #
 """
-<plugin key="Roomba" name="Roomba" author="Filip Demaertelaere" version="1.2.0">
+<plugin key="Roomba" name="Roomba" author="Filip Demaertelaere" version="1.3.0">
     <description>
         Plugin to manage the Roomba from iRobot.<br/><br/>
     </description>
@@ -51,12 +51,14 @@ CONFIG = 'config.ini'
 STATE = 'State'
 RUN = 'Run'
 BATTERY = 'Battery Level'
+ERROR = 'Error'
 
 #ROOMBA SPECIFIC
 _COMMANDS = '/roomba/command/'
 _FEEDBACK = '/roomba/feedback/'
 _STATE = '/state'
 _BATPCT = '/batPct'
+_ERROR = '/error_message'
 _START = 'start'
 _STOP = 'stop'
 _DOCK = 'dock'
@@ -114,6 +116,10 @@ class BasePlugin:
             if not Unit:
                 Unit = GetNextFreeUnit(Devices)
                 Domoticz.Device(Unit=Unit, Name='{} - {}'.format(roomba, BATTERY), TypeName='Custom', Options={'Custom': '0;%'}, Image=Images[_IMAGE_ROOMBA].ID, Used=0).Create()
+            Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, ERROR))
+            if not Unit:
+                Unit = GetNextFreeUnit(Devices)
+                Domoticz.Device(Unit=Unit, Name='{} - {}'.format(roomba, ERROR), TypeName='Text', Image=Images[_IMAGE_ROOMBA].ID, Used=1).Create()
         TimeoutDevice(Devices, All=True)
         
         # Start MQTT
@@ -136,7 +142,7 @@ class BasePlugin:
                 Domoticz.Debug('iRobot found to send command to ({}).'.format(roomba))
                 if roomba in self.myroombas:
                     if Command == 'On':
-                        if self.myroombas[roomba]['state'] == _CHARGING:
+                        if self.myroombas[roomba][_STATE[1:]] == _CHARGING:
                             self.mqttClient.Publish('{}{}'.format(_COMMANDS, roomba), _START)
                         else:
                             self.mqttClient.Publish('{}{}'.format(_COMMANDS, roomba), _DOCK)
@@ -180,10 +186,10 @@ class BasePlugin:
 
                     # Commands to Roomba
                     for roomba in self.myroombas:
-                        if 'state' in roomba and 'execute' in roomba and roomba['execute'] == _DOCK:
-                            if roomba['state'] == _STOPPED:
+                        if _STATE[1:] in roomba and 'execute' in roomba and roomba['execute'] == _DOCK:
+                            if roomba[_STATE[1:]] == _STOPPED:
                                 self.mqttClient.Publish('{}{}'.format(_COMMANDS, roomba), _DOCK)
-                            elif roomba['state'] == _CHARGING:
+                            elif roomba[_STATE[1:]] == _CHARGING:
                                 roomba['execute'] = ''
                 
             except Exception as e:
@@ -197,29 +203,46 @@ class BasePlugin:
             # Update devices
             for roomba in self.myroombas:
                 if 'MqttUpdatereceived' in self.myroombas[roomba] and self.myroombas[roomba]['MqttUpdatereceived']:
-                    if 'state' in self.myroombas[roomba] and self.myroombas[roomba]['state']:
+                    if _STATE[1:] in self.myroombas[roomba] and self.myroombas[roomba][_STATE[1:]]:
                         Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, STATE))
-                        UpdateDevice(False, Devices, Unit, 0, self.myroombas[roomba]['state'])
+                        if not Unit: Unit = FindUnitFromDescription(Devices, Parameters, '{} - {}'.format(roomba, STATE))
+                        UpdateDevice(False, Devices, Unit, 0, self.myroombas[roomba][_STATE[1:]])
                         Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, RUN))
-                        if self.myroombas[roomba]['state'] == 'Running':
+                        if not Unit: Unit = FindUnitFromDescription(Devices, Parameters, '{} - {}'.format(roomba, RUN))
+                        if self.myroombas[roomba][_STATE[1:]] == 'Running':
                             UpdateDevice(False, Devices, Unit, 1, 1)
                         else:
                             UpdateDevice(False, Devices, Unit, 0, 0)
-                    if 'batPct' in self.myroombas[roomba] and self.myroombas[roomba]['batPct']:
+                            
+                    if _BATPCT[1:] in self.myroombas[roomba] and self.myroombas[roomba][_BATPCT[1:]]:
                         Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, RUN))
-                        UpdateDeviceBatSig(False, Devices, Unit, BatteryLevel=self.myroombas[roomba]['batPct'])
+                        if not Unit: Unit = FindUnitFromDescription(Devices, Parameters, '{} - {}'.format(roomba, RUN))
+                        UpdateDeviceBatSig(False, Devices, Unit, BatteryLevel=self.myroombas[roomba][_BATPCT[1:]])
                         Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, BATTERY))
-                        UpdateDevice(False, Devices, Unit, self.myroombas[roomba]['batPct'], self.myroombas[roomba]['batPct'])
+                        if not Unit: Unit = FindUnitFromDescription(Devices, Parameters, '{} - {}'.format(roomba, BATTERY))
+                        UpdateDevice(False, Devices, Unit, self.myroombas[roomba][_BATPCT[1:]], self.myroombas[roomba][_BATPCT[1:]])
+                        
+                    if _ERROR[1:] in self.myroombas[roomba] and self.myroombas[roomba][_ERROR[1:]]:
+                        Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, ERROR))
+                        if not Unit: Unit = FindUnitFromDescription(Devices, Parameters, '{} - {}'.format(roomba, ERROR))
+                        UpdateDevice(False, Devices, Unit, 0, self.myroombas[roomba][_ERROR[1:]])
+
                     self.myroombas[roomba]['MqttUpdatereceived'] = False
         
             # Check if getting information from MQTT Broker
             for roomba in self.myroombas:
                 if 'lastMqttUpdate' in self.myroombas[roomba] and (datetime.now()-self.myroombas[roomba]['lastMqttUpdate']).total_seconds() > int(Parameters['Mode5']) * 60:
                     Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, STATE))
+                    if not Unit: Unit = FindUnitFromDescription(Devices, Parameters, '{} - {}'.format(roomba, STATE))
                     TimeoutDevice(Devices, All=False, Unit=Unit)
                     Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, RUN))
+                    if not Unit: Unit = FindUnitFromDescription(Devices, Parameters, '{} - {}'.format(roomba, RUN))
                     TimeoutDevice(Devices, All=False, Unit=Unit)
                     Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, BATTERY))
+                    if not Unit: Unit = FindUnitFromDescription(Devices, Parameters, '{} - {}'.format(roomba, BATTERY))
+                    TimeoutDevice(Devices, All=False, Unit=Unit)
+                    Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, ERROR))
+                    if not Unit: Unit = FindUnitFromDescription(Devices, Parameters, '{} - {}'.format(roomba, ERROR))
                     TimeoutDevice(Devices, All=False, Unit=Unit)
 
             self.runAgain = MINUTE
@@ -227,7 +250,7 @@ class BasePlugin:
     def onMQTTConnected(self):
         Domoticz.Debug('onMQTTConnected')
         if self.mqttClient is not None:
-            self.mqttClient.Subscribe([ item for roomba in self.myroombas for item in ['{}{}{}'.format(_FEEDBACK, roomba, _STATE), '{}{}{}'.format(_FEEDBACK, roomba, _BATPCT)] ])
+            self.mqttClient.Subscribe([ item for roomba in self.myroombas for item in ['{}{}{}'.format(_FEEDBACK, roomba, _STATE), '{}{}{}'.format(_FEEDBACK, roomba, _BATPCT), '{}{}{}'.format(_FEEDBACK, roomba, _ERROR)] ])
 
     def onMQTTDisconnected(self):
         Domoticz.Debug('onMQTTDisconnected')
@@ -242,7 +265,7 @@ class BasePlugin:
             if topic.endswith(_STATE):
                 try:
                     roomba = re.search('{}(.*?){}'.format(_FEEDBACK, _STATE), topic)[1]
-                    self.myroombas[roomba]['state'] = message
+                    self.myroombas[roomba][_STATE[1:]] = message
                     self.myroombas[roomba]['lastMqttUpdate'] = datetime.now()
                     self.myroombas[roomba]['MqttUpdatereceived'] = True
                 except:
@@ -250,7 +273,15 @@ class BasePlugin:
             elif topic.endswith(_BATPCT):
                 try:
                     roomba = re.search('{}(.*?){}'.format(_FEEDBACK, _BATPCT), topic)[1]
-                    self.myroombas[roomba]['batPct'] = int(message)
+                    self.myroombas[roomba][_BATPCT[1:]] = int(message)
+                    self.myroombas[roomba]['lastMqttUpdate'] = datetime.now()
+                    self.myroombas[roomba]['MqttUpdatereceived'] = True
+                except:
+                    pass
+            elif topic.endswith(_ERROR):
+                try:
+                    roomba = re.search('{}(.*?){}'.format(_FEEDBACK, _ERROR), topic)[1]
+                    self.myroombas[roomba][_ERROR[1:]] = message
                     self.myroombas[roomba]['lastMqttUpdate'] = datetime.now()
                     self.myroombas[roomba]['MqttUpdatereceived'] = True
                 except:
