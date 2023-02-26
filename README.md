@@ -54,7 +54,7 @@ This chapter explains how to create the config.ini file that 1) is used to get t
 
 ### Create ROOMBA Client to get information and forward to MQTT Broker
 `roomba` is a python3 module that acts as MQTT Client and forward the informaton to a MQTT Broker. It is based on Nick Waterton's work (https://github.com/NickWaterton/Roomba980-Python).
-It can be started manually by `python3 roomba --topic /roomba/feedback/# --broker localhost --brokerFeedback /roomba/feedback --mapPath '' --mapSize '' --log ''` from the folder `/home/pi/domoticz/plugin/Roomba`. The arguments have the following meaning:
+It can be started manually by `python3 roomba --topic /roomba/feedback/# --broker localhost --broker_feedback /roomba/feedback --mappath '' --mapsize '' --echo --log '/tmp/roomba.log'` from the folder `/home/pi/domoticz/plugin/Roomba`. The arguments have the following meaning:
   * --topic: information/topics subscribed from the ROOMBA
   * --broker: (IP)Address of the MQTT Broker/Server
   * --broker_feedback: information/topics from the ROOMBA sent to the MQTT Broker
@@ -76,7 +76,7 @@ Type=simple
 Restart=always
 RestartSec=10
 User=pi
-ExecStart=/usr/bin/python3 /home/pi/domoticz/plugins/Roomba/roomba --configfile /home/pi/domoticz/plugins/Roomba/config.ini --topic /roomba/feedback/# --broker localhost --brokerFeedback /roomba/feedback --mapPath '' --mapSize '' --log ''
+ExecStart=/usr/bin/python3 /home/pi/domoticz/plugins/Roomba/roomba --configfile /home/pi/domoticz/plugins/Roomba/config.ini --topic /roomba/feedback/# --broker localhost --broker_feedback /roomba/feedback --mappath '' --mapsize '' --echo --log '/tmp/roomba.log'
 
 [Install]
 WantedBy=multi-user.target
