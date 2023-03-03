@@ -105,18 +105,25 @@ class BasePlugin:
         # Create devices
         for roomba in self.myroombas:
             Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, STATE))
+            if not Unit: Unit = FindUnitFromDescription(Devices, Parameters, '{} - {}'.format(roomba, STATE))
             if not Unit:
                 Unit = GetNextFreeUnit(Devices)
                 Domoticz.Device(Unit=Unit, Name='{} - {}'.format(roomba, STATE), TypeName='Text', Image=Images[_IMAGE_ROOMBA].ID, Used=1).Create()
+
             Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, RUN))
+            if not Unit: Unit = FindUnitFromDescription(Devices, Parameters, '{} - {}'.format(roomba, RUN))
             if not Unit:
                 Unit = GetNextFreeUnit(Devices)
                 Domoticz.Device(Unit=Unit, Name='{} - {}'.format(roomba, RUN), Type=244, Subtype=73, Switchtype=0, Image=Images[_IMAGE_ROOMBA].ID, Used=1).Create()
+
             Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, BATTERY))
+            if not Unit: Unit = FindUnitFromDescription(Devices, Parameters, '{} - {}'.format(roomba, BATTERY))
             if not Unit:
                 Unit = GetNextFreeUnit(Devices)
                 Domoticz.Device(Unit=Unit, Name='{} - {}'.format(roomba, BATTERY), TypeName='Custom', Options={'Custom': '0;%'}, Image=Images[_IMAGE_ROOMBA].ID, Used=0).Create()
+
             Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, ERROR))
+            if not Unit: Unit = FindUnitFromDescription(Devices, Parameters, '{} - {}'.format(roomba, ERROR))
             if not Unit:
                 Unit = GetNextFreeUnit(Devices)
                 Domoticz.Device(Unit=Unit, Name='{} - {}'.format(roomba, ERROR), TypeName='Text', Image=Images[_IMAGE_ROOMBA].ID, Used=1).Create()
