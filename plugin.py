@@ -8,7 +8,7 @@
 # Plugin to manage from Roomba vaccum cleaner from iRobot.
 #
 """
-<plugin key="Roomba" name="Roomba" author="Filip Demaertelaere" version="1.3.0">
+<plugin key="Roomba" name="Roomba" author="Filip Demaertelaere" version="1.3.1">
     <description>
         Plugin to manage the Roomba from iRobot.<br/><br/>
     </description>
@@ -82,7 +82,7 @@ class BasePlugin:
     def onStart(self):
 
         # Debugging On/Off
-        self.debug = DEBUG_ON if Parameters['Mode6'] == 'Debug' else DEBUG_OFF
+        self.debug = DEBUG_ON if Parameters['Mode6'] == 'Debug' else DEBUG_ON_NO_FRAMEWORK
         Domoticz.Debugging(self.debug)
         if self.debug == DEBUG_ON:
             DumpConfigToLog(Parameters, Devices)
@@ -143,19 +143,22 @@ class BasePlugin:
 
     def onCommand(self, Unit, Command, Level, Color):  # react to commands arrived from Domoticz
         Domoticz.Debug('onCommand called for "{}" Unit: {} - Parameter: {} - Level: {}'.format(Devices[Unit].Name, Unit, Command, Level))
-        if Devices[Unit].Name.endswith(RUN):
+        if Devices[Unit].Name.endswith(RUN) or GetTagFromDescription(Devices, Unit, 'Name').endswith(RUN):
             try:
-                roomba = re.search('{} - (.*?) - {}'.format(Parameters['Name'], RUN), Devices[Unit].Name)[1]
-                Domoticz.Debug('iRobot found to send command to ({}).'.format(roomba))
-                if roomba in self.myroombas:
-                    if Command == 'On':
-                        if self.myroombas[roomba][_STATE[1:]] == _CHARGING:
-                            self.mqttClient.Publish('{}{}'.format(_COMMANDS, roomba), _START)
+                roomba = re.search('{} - (.*?) - {}'.format(Parameters['Name'], RUN), Devices[Unit].Name)
+                if not roomba: roomba = re.search('{} - (.*?) - {}'.format(Parameters['Name'], RUN), GetTagFromDescription(Devices, Unit, 'Name'))
+                if roomba: 
+                    roomba = roomba[1]
+                    Domoticz.Debug('iRobot found to send command to ({}).'.format(roomba))
+                    if roomba in self.myroombas:
+                        if Command == 'On':
+                            if self.myroombas[roomba][_STATE[1:]] == _CHARGING:
+                                self.mqttClient.Publish('{}{}'.format(_COMMANDS, roomba), _START)
+                            else:
+                                self.mqttClient.Publish('{}{}'.format(_COMMANDS, roomba), _DOCK)
                         else:
-                            self.mqttClient.Publish('{}{}'.format(_COMMANDS, roomba), _DOCK)
-                    else:
-                        self.mqttClient.Publish('{}{}'.format(_COMMANDS, roomba), _STOP)
-                        self.myroombas[roomba]['execute'] = _DOCK
+                            self.mqttClient.Publish('{}{}'.format(_COMMANDS, roomba), _STOP)
+                            self.myroombas[roomba]['execute'] = _DOCK
                 else:
                     Domoticz.Status('"{}" is not a valid iRobot (not found in the file "{}").'.format(roomba, CONFIG))                
             except:
