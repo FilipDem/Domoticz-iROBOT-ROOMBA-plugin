@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 '''
-Python 3.6 Program to connect to Roomba vacuum cleaners, dcode json, and forward to mqtt
+Python 3.7 Program to connect to Roomba vacuum cleaners, dcode json, and forward to mqtt
 server
 
 Nick Waterton 24th April 2017: V 1.0: Initial Release
@@ -32,9 +32,13 @@ Nick Waterton 19th April 2021 V2.0.0f: added set_ciphers('DEFAULT@SECLEVEL=1') t
 Nick Waterton 3rd May 2021 V2.0.0g: More python 3.8 fixes.
 Nick Waterton 7th May 2021 V2.0.0h: added "ignore_run" after mission complete as still geting bogus run states
 Nick Waterton 17th May 2021 V2.0.0i: mission state machine rework due to bogus states still being reported. increased max_distance to 500
+Nick Waterton 14th January 2022 V2.0.0j: Added ability to send json commands via mqtt for testing.
+Nick Waterton 17th June 2022 V2.0.0k: Added error 216 "Charging base bag full"
+Nick Waterton 12th jan 2023 V 2.0.1: Python 3.10 compatibility
+Nick Waterton 19th Jun 2024 V 2.0.2: Python 3.10 compatibility fixes and TLS fixes. Drop support for Python 3.6 and earlier
 '''
 
-__version__ = "2.0.0i"
+__version__ = "2.0.2"
 
 import asyncio
 from ast import literal_eval
@@ -78,6 +82,14 @@ try:
     HAVE_PIL = True
 except ImportError:
     print("PIL module not found, maps are disabled")
+
+try:
+    # ANTIALIAS is deprecated and has been removed in Pillow 10.0.0
+    LANCZOS = Image.LANCZOS
+except AttributeError:
+    LANCZOS = Image.ANTIALIAS
+except NameError:
+    pass
     
 if sys.version_info < (3, 7):
     asyncio.get_running_loop = asyncio.get_event_loop
@@ -151,8 +163,7 @@ class icons():
         try:
             if not size:
                 size = self.size
-            icon = Image.open(filename).convert('RGBA').resize(
-                size,Image.ANTIALIAS)
+            icon = Image.open(filename).convert('RGBA').resize(size, LANCZOS)
             icon = make_transparent(icon)
             icon = icon.rotate(180-self.angle, expand=False)
             self.icons[name] = icon
@@ -203,7 +214,7 @@ class icons():
             size = self.size
             
         if icon_name in ['roomba', 'stuck', 'cancelled']:
-            icon = self.base_icon.copy().resize(size,Image.ANTIALIAS)
+            icon = self.base_icon.copy().resize(size, LANCZOS)
         else:
             icon = Image.new('RGBA', size, transparent)
         draw_icon = ImageDraw.Draw(icon)
@@ -375,6 +386,7 @@ class Roomba(object):
         120: "Battery not initialized",
         122: "Charging system error",
         123: "Battery not initialized",
+        216: "Charging base bag full",
     }
 
     def __init__(self, address=None, blid=None, password=None, topic="#",
@@ -444,7 +456,7 @@ class Roomba(object):
         self.max_sqft = None
         self.cb = None
         
-        self.is_connected = asyncio.Event(loop=self.loop)
+        self.is_connected = asyncio.Event()
         self.q = asyncio.Queue()
         self.command_q = asyncio.Queue()            
         self.loop.create_task(self.process_q())
@@ -515,7 +527,9 @@ class Roomba(object):
             self.log.info("Setting TLS")
             try:
                 #self.client._ssl_context = None
-                context = ssl.SSLContext()
+                context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
                 # Either of the following context settings works - choose one
                 # Needed for 980 and earlier robots as their security level is 1.
                 # context.set_ciphers('HIGH:!DH:!aNULL')
@@ -598,7 +612,7 @@ class Roomba(object):
     async def _disconnect(self):
         #if self.ws:
         #    await self.ws.cancel()
-        tasks = [t for t in asyncio.Task.all_tasks() if t is not asyncio.Task.current_task()]
+        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
         [task.cancel() for task in tasks]
         self.log.info("Cancelling {} outstanding tasks".format(len(tasks)))
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -760,6 +774,7 @@ class Roomba(object):
             client.subscribe(self.brokerCommand)
             client.subscribe(self.brokerSetting)
             client.subscribe(self.brokerCommand.replace('command','simulate'))
+            client.subscribe(self.brokerCommand.replace('command','json'))
             self.log.info('subscribed to {}, {}'.format(self.brokerCommand, self.brokerSetting))
 
     def broker_on_message(self, mosq, obj, msg):
@@ -772,6 +787,16 @@ class Roomba(object):
             self.log.info("Received SETTING: {}".format(payload))
             cmd = str(payload).split()
             self.set_preference(cmd[0], cmd[1])
+        elif "json" in msg.topic:
+            self.log.info("Received JSON: {}".format(payload))
+            try:
+                topic = msg.topic.split("/")[-1]
+                topic = topic if topic != self.roombaName else "delta"
+                cmd = json.dumps(json.loads(payload))
+                self.client.publish(topic, cmd)
+                self.log.info("Published to Roomba topic: {} json: {}".format(topic, cmd)) 
+            except Exception as e:
+                self.log.error("Error in json: {}".format(e))
         elif 'simulate' in msg.topic:
             self.log.info('received simulate command: {}'.format(payload))
             self.set_simulate(True)
@@ -916,7 +941,7 @@ class Roomba(object):
             val = False
         Command = {"state": {preference: val}}
         myCommand = json.dumps(Command)
-        self.log.info("Publishing Roomba {} Setting :{}s".format(self.roombaName, myCommand))
+        self.log.info("Publishing Roomba {} Setting :{}".format(self.roombaName, myCommand))
         self.client.publish("delta", myCommand)
     
     def _set_cleanSchedule(self, setting):

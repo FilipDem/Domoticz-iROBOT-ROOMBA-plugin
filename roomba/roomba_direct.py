@@ -345,7 +345,7 @@ def main():
         log_level = logging.ERROR
 
     #setup logging
-    setup_logger('Roomba', arg.log, level=log_level, console=arg.echo)
+    setup_logger('Roomba', arg.log, level=log_level,console=arg.echo)
     
     #log = logging.basicConfig(level=logging.DEBUG, 
     #    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
