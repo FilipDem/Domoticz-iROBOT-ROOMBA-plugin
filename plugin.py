@@ -8,9 +8,11 @@
 # Plugin to manage from Roomba vaccum cleaner from iRobot.
 #
 """
-<plugin key="Roomba" name="Roomba" author="Filip Demaertelaere" version="1.3.1">
+<plugin key="Roomba" name="Roomba" author="Filip Demaertelaere" version="1.3.0">
     <description>
-        Plugin to manage the Roomba from iRobot.<br/><br/>
+        Plugin to manage the Roomba from iRobot.<br/>
+        For more information about the installation, refer to<br/>
+        https://github.com/FilipDem/Domoticz-iROBOT-ROOMBA-plugin<br/><br/>
     </description>
     <params>
         <param field="Address" label="MQTT Server Address" width="300px" required="true" default="127.0.0.1"/>
@@ -140,6 +142,7 @@ class BasePlugin:
 
     def onStop(self):
         Domoticz.Debug('onStop called')
+        self.mqttClient.Close()
 
     def onCommand(self, Unit, Command, Level, Color):  # react to commands arrived from Domoticz
         Domoticz.Debug('onCommand called for "{}" Unit: {} - Parameter: {} - Level: {}'.format(Devices[Unit].Name, Unit, Command, Level))
@@ -210,6 +213,14 @@ class BasePlugin:
 
             Domoticz.Debug('Heartbeat - Status of all iRobots: {}.'.format(self.myroombas))
             
+            # Check stopped roombas and send them to the charging station
+            for roomba in self.myroombas:
+                Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, ERROR))
+                if GetDevicesValue(Devices, Unit) == 'None':
+                    Unit = FindUnitFromName(Devices, Parameters, '{} - {}'.format(roomba, STATE))
+                    if GetDevicesValue(Devices, Unit) == _STOPPED and SecondsSinceLastUpdate(Devices, Unit) >= 300:
+                        self.mqttClient.Publish('{}{}'.format(_COMMANDS, roomba), _DOCK)
+
             # Update devices
             for roomba in self.myroombas:
                 if 'MqttUpdatereceived' in self.myroombas[roomba] and self.myroombas[roomba]['MqttUpdatereceived']:
@@ -336,3 +347,4 @@ def onHeartbeat():
 ################################################################################
 # Specific helper functions
 ################################################################################
+
