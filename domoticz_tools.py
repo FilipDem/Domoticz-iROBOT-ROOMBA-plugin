@@ -6,16 +6,17 @@
 
 __all__ = ['TIMEDOUT', 'MINUTE', 'DEBUG_OFF', 'DEBUG_ON', 'DEBUG_ON_NO_FRAMEWORK',\
            'DumpConfigToLog', \
-           'GetNextFreeUnit', 'FindUnitFromName', 'FindUnitFromDescription', 'AddTagToDescription', 'GetTagFromDescription', 'UpdateDevice', 'UpdateDeviceBatSig', 'TimeoutDevice', 'TimeoutDevicesByName', 'UpdateDeviceOptions', 'SecondsSinceLastUpdate', \
-           'getConfigItemDB', 'setConfigItemDB', 'getConfigItemFile', 'setConfigItemFile', \
+           'DomoticzAPI', \
+           'GetNextFreeUnit', 'FindUnitFromName', 'FindUnitFromDescription', 'AddTagToDescription', 'GetTagFromDescription', 'UpdateDevice', 'GetDevicesValue', 'GetDevicenValue', 'UpdateDeviceBatSig', 'TimeoutDevice', 'TimeoutDevicesByName', 'UpdateDeviceOptions', 'SecondsSinceLastUpdate', 'DateStringtoDateTime', \
+           'getConfigItemDB', 'setConfigItemDB', 'eraseConfigItemDB', 'getConfigItemFile', 'setConfigItemFile', \
            'getCPUtemperature', \
            'FormatWebSocketMessage', 'FormatWebSocketPong', 'FormatWebSocketMessageDisconnect', \
-           'getDistance' \
+           'getDistance', 'Average' \
           ] 
 
 #IMPORTS
 import Domoticz
-import datetime
+from datetime import datetime 
 import json
 import os
 
@@ -98,14 +99,26 @@ def UpdateDevice(AlwaysUpdate, Devices, Unit, nValue, sValue, **kwargs):
         default_kwargs = { 'TimedOut': 0 }
         kwargs = { **default_kwargs, **kwargs }
         if AlwaysUpdate or Devices[Unit].nValue != int(nValue) or Devices[Unit].sValue != str(sValue) or Devices[Unit].TimedOut != kwargs['TimedOut'] or len(kwargs)>1:
-            Domoticz.Debug('Update {}: nValue {} - sValue {} - Other: {}'.format(Devices[Unit].Name, nValue, sValue, kwargs))
+            #Domoticz.Debug('Update {}: nValue {} - sValue {} - Other: {}'.format(Devices[Unit].Name, nValue, sValue, kwargs))
             Devices[Unit].Update(nValue=int(nValue), sValue=str(sValue), **kwargs)
             Updated = True
         else:
             if not kwargs.get('TimedOut', 0):
-                Devices[Unit].Touch()
+                #Touch() updates the LastSeen property with a new date and timestamp!!
+                #Devices[Unit].Touch()
+                pass
     return Updated
 
+#GET sVALUE OF DEVICE
+def GetDevicesValue(Devices, Unit):
+    if Unit in Devices:
+        return Devices[Unit].sValue
+        
+#GET nVALUE OF DEVICE
+def GetDevicenValue(Devices, Unit):
+    if Unit in Devices:
+        return int(Devices[Unit].nValue)
+        
 #UPDATE THE BATTERY LEVEL AND SIGNAL STRENGTH OF A DEVICE
 def UpdateDeviceBatSig(AlwaysUpdate, Devices, Unit, BatteryLevel=255, SignalLevel=12):
     if Unit in Devices:
@@ -115,15 +128,19 @@ def UpdateDeviceBatSig(AlwaysUpdate, Devices, Unit, BatteryLevel=255, SignalLeve
 def TimeoutDevice(Devices, All=True, Unit=0):
     if All:
         for x in Devices:
-            UpdateDevice(False, Devices, x, Devices[x].nValue, Devices[x].sValue, TimedOut=TIMEDOUT)
+            if not Devices[x].TimedOut:
+                UpdateDevice(False, Devices, x, Devices[x].nValue, Devices[x].sValue, TimedOut=TIMEDOUT)
     else:
-        UpdateDevice(False, Devices, Unit, Devices[Unit].nValue, Devices[Unit].sValue, TimedOut=TIMEDOUT)
+        if not Devices[Unit].TimedOut:
+            UpdateDevice(False, Devices, Unit, Devices[Unit].nValue, Devices[Unit].sValue, TimedOut=TIMEDOUT)
 
 #SET DEVICES ON TIMED-OUT BY USING A TEXT IN THE DEVICE NAME
 def TimeoutDevicesByName(Devices, Name):
     for x in Devices:
-        if Name in x.Name:
-            UpdateDevice(False, Devices, x, Devices[x].nValue, Devices[x].sValue, TimedOut=TIMEDOUT)
+        if Name in Devices[x].Name:
+            if not Devices[x].TimedOut:
+                UpdateDevice(False, Devices, x, Devices[x].nValue, Devices[x].sValue, TimedOut=TIMEDOUT)
+            return x
 
 #UPDATE THE OPTIONS OF A DEVICE
 def UpdateDeviceOptions(Devices, Unit, Options={}):
@@ -136,19 +153,25 @@ def UpdateDeviceOptions(Devices, Unit, Options={}):
 
 #GET THE SECONDS SINCE THE LASTUPDATE
 def SecondsSinceLastUpdate(Devices, Unit):
+    timeDiff = datetime.now() - DateStringtoDateTime(Devices[Unit].LastUpdate)
+    return timeDiff.total_seconds()
+
+#CONVERT STRING IN FORMAT %Y-%m-%d %H:%M:%S TO DATETIME OBJECT
+def DateStringtoDateTime(DateStr):
     # try/catch due to http://bugs.python.org/issue27400
     try:
-        timeDiff = datetime.now() - datetime.strptime(Devices[Unit].LastUpdate,'%Y-%m-%d %H:%M:%S')
+        Datim = datetime.strptime(DateStr,'%Y-%m-%d %H:%M:%S')
     except TypeError:
-        timeDiff = datetime.now() - datetime(*(time.strptime(Devices[Unit].LastUpdate,'%Y-%m-%d %H:%M:%S')[0:6]))
-    return timeDiff
+        import time
+        Datim = datetime(*(time.strptime(DateStr,'%Y-%m-%d %H:%M:%S')[0:6]))
+    return Datim
 
 #GET CONFIGURATION VARIALBE (STORED IN DB)
 def getConfigItemDB(Key=None, Default={}):
     Value = Default
     try:
         Config = Domoticz.Configuration()
-        if (Key != None):
+        if Key != None:
             Value = Config[Key] # only return requested key if there was one
         else:
             Value = Config      # return the whole configuration if no key
@@ -163,10 +186,24 @@ def setConfigItemDB(Key=None, Value=None):
     Config = {}
     try:
         Config = Domoticz.Configuration()
-        if (Key != None):
+        if Key != None:
             Config[Key] = Value
         else:
             Config = Value  # set whole configuration if no key specified
+        Config = Domoticz.Configuration(Config)
+    except Exception as inst:
+        Domoticz.Error('Domoticz.Configuration operation failed: {}'.format(inst))
+    return Config
+
+#ERASE CONFIGURATION VARIALBE (STORED IN DB)
+def eraseConfigItemDB(Key=None):
+    Config = {}
+    try:
+        Config = Domoticz.Configuration()
+        if Key != None:
+            del Config[Key]
+        else:
+            Config.clear()
         Config = Domoticz.Configuration(Config)
     except Exception as inst:
         Domoticz.Error('Domoticz.Configuration operation failed: {}'.format(inst))
@@ -234,7 +271,7 @@ def getCPUtemperature():
     
 #CALCULATE DISTANCE BASED ON GPS COORDINATES
 from math import radians, sin, cos, atan2, sqrt
-def getDistance(origin, destination):
+def getDistance(origin, destination, unit='km'):
     radius = 6371 # km
 
     dlat = radians(destination[0]-origin[0])
@@ -244,5 +281,49 @@ def getDistance(origin, destination):
     c = 2 * atan2(sqrt(a), sqrt(1-a))
     d = radius * c
 
-    return d
+    return d*1000 if unit=='m' else d
+
+#CALCULATE AVERAGE
+def Average(mylist):
+    tot = 0
+    nbr = 0
+    for el in mylist:
+        if type(el) == int or type(el) == float:
+            tot += el
+            nbr += 1
+    if nbr:
+        return tot/nbr
+    else:
+        return None
+
+#CALL DOMOTICZ API    
+def DomoticzAPI(Parameters, APICall):
+    from urllib import parse, request
+    import base64
+
+    resultJson = None
+    url = 'http://{}:{}/json.htm?{}'.format(Parameters['Address'], Parameters['Port'], parse.quote(APICall, safe='&='))
+
+    try:
+        req = request.Request(url)
+        if Parameters["Username"]:
+            credentials = ('{}:{}'.format(Parameters['Username'], Parameters['Password']))
+            encoded_credentials = base64.b64encode(credentials.encode('ascii'))
+            req.add_header('Authorization', 'Basic {}'.format(encoded_credentials.decode('ascii')))
+
+        Domoticz.Debug('Sending DomoticzAPI: {}'.format(url))
+        response = request.urlopen(req)
+        Domoticz.Debug('Receiving status code DomoticzAPI: {}'.format(response.status))
+        if response.status == 200:
+            resultJson = json.loads(response.read().decode('utf-8'))
+            if resultJson['status'] != 'OK':
+                Domoticz.Error("Domoticz API returned an error: status = {}".format(resultJson["status"]))
+                resultJson = None
+        else:
+            Domoticz.Error("Domoticz API: http error = {}".format(response.status))
+    except:
+        Domoticz.Error("Error calling '{}'".format(url))
+
+    return resultJson
+
 
