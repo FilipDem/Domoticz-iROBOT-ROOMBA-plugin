@@ -34,8 +34,12 @@ class MqttClient:
         if (self.mqttConn != None):
             self.Close()
         self.isConnected = False
-        self.mqttConn = Domoticz.Connection(Name=self.Address, Transport="TCP/IP", Protocol="MQTT", Address=self.Address, Port=self.Port)
-        self.mqttConn.Connect()
+        try:
+            self.mqttConn = Domoticz.Connection(Name=self.Address, Transport="TCP/IP", Protocol="MQTT", Address=self.Address, Port=self.Port)
+            self.mqttConn.Connect(Timeout=30000)
+        except:
+            Domoticz.Debug("Problem connecting to MQTT broker.")
+            self.mqttConn = None
 
     def Connect(self):
         Domoticz.Debug("MqttClient::Connect")
@@ -44,21 +48,30 @@ class MqttClient:
         elif self.mqttConn.Connected():
             ID = 'Domoticz_'+str(int(time.time()))
             Domoticz.Log("MQTT CONNECT ID: '" + ID + "'")
-            self.mqttConn.Send({'Verb': 'CONNECT', 'ID': ID})
+            try:
+                self.mqttConn.Send({'Verb': 'CONNECT', 'ID': ID})
+            except:
+                Domoticz.Debug("Problem sending CONNECT message to MQTT broker.")
 
     def Ping(self):
         Domoticz.Debug("MqttClient::Ping")
         if (self.mqttConn == None or not self.isConnected):
             self.Open()
         elif self.isConnected:
-            self.mqttConn.Send({'Verb': 'PING'})
+            try:
+                self.mqttConn.Send({'Verb': 'PING'})
+            except:
+                Domoticz.Debug("Problem sending PING message to MQTT broker.")
 
     def Publish(self, topic, payload, retain = 0):
-        Domoticz.Log("MqttClient::Publish " + topic + " (" + payload + ")")
+        Domoticz.Debug("MqttClient::Publish " + topic + " (" + payload + ")")
         if (self.mqttConn == None or not self.isConnected):
             self.Open()
         elif self.isConnected:
-            self.mqttConn.Send({'Verb': 'PUBLISH', 'Topic': topic, 'Payload': bytearray(payload, 'utf-8'), 'Retain': retain})
+            try:
+                self.mqttConn.Send({'Verb': 'PUBLISH', 'Topic': topic, 'Payload': bytearray(payload, 'utf-8'), 'Retain': retain})
+            except:
+                Domoticz.Debug("Problem sending PUBLISH message to MQTT broker.")
 
     def Subscribe(self, topics):
         Domoticz.Debug("MqttClient::Subscribe")
@@ -68,21 +81,27 @@ class MqttClient:
         if (self.mqttConn == None or not self.isConnected):
             self.Open()
         elif self.isConnected:
-            self.mqttConn.Send({'Verb': 'SUBSCRIBE', 'Topics': subscriptionlist})
+            try:
+                self.mqttConn.Send({'Verb': 'SUBSCRIBE', 'Topics': subscriptionlist})
+            except:
+                Domoticz.Debug("Problem sending SUBSCRIBE message to MQTT broker.")
 
     def Close(self):
         Domoticz.Log("MqttClient::Close")
-        #TODO: Disconnect from server
         self.mqttConn = None
         self.isConnected = False
+
+    def onTimeout(self, Connection):
+        Domoticz.Debug("MqttClient::onTimeout")
+        self.mqttConn = None
 
     def onConnect(self, Connection, Status, Description):
         Domoticz.Debug("MqttClient::onConnect")
         if (Status == 0):
-            Domoticz.Log("Successful connect to: "+Connection.Address+":"+Connection.Port)
+            Domoticz.Debug("Successful connect to: "+Connection.Address+":"+Connection.Port)
             self.Connect()
         else:
-            Domoticz.Log("Failed to connect to: "+Connection.Address+":"+Connection.Port+", Description: "+Description)
+            Domoticz.Debug("Failed to connect to: "+Connection.Address+":"+Connection.Port+", Description: "+Description)
 
     def onDisconnect(self, Connection):
         Domoticz.Log("MqttClient::onDisonnect Disconnected from: "+Connection.Address+":"+Connection.Port)
